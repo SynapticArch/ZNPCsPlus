@@ -6,7 +6,7 @@ import lol.pyr.znpcsplus.entity.EntityPropertyImpl;
 import lol.pyr.znpcsplus.entity.EntityPropertyRegistryImpl;
 import lol.pyr.znpcsplus.entity.PropertySerializer;
 import lol.pyr.znpcsplus.hologram.HologramImpl;
-import lol.pyr.znpcsplus.interaction.ActionRegistry;
+import lol.pyr.znpcsplus.interaction.ActionRegistryImpl;
 import lol.pyr.znpcsplus.npc.NpcEntryImpl;
 import lol.pyr.znpcsplus.npc.NpcImpl;
 import lol.pyr.znpcsplus.npc.NpcTypeRegistryImpl;
@@ -28,7 +28,7 @@ public class MySQLStorage implements NpcStorage {
 
     private final PacketFactory packetFactory;
     private final ConfigManager configManager;
-    private final ActionRegistry actionRegistry;
+    private final ActionRegistryImpl actionRegistry;
     private final NpcTypeRegistryImpl typeRegistry;
     private final EntityPropertyRegistryImpl propertyRegistry;
     private final LegacyComponentSerializer textSerializer;
@@ -39,14 +39,15 @@ public class MySQLStorage implements NpcStorage {
     private final String TABLE_NPCS_HOLOGRAMS;
     private final String TABLE_NPCS_ACTIONS;
 
-    public MySQLStorage(PacketFactory packetFactory, ConfigManager configManager, ActionRegistry actionRegistry, NpcTypeRegistryImpl typeRegistry, EntityPropertyRegistryImpl propertyRegistry, LegacyComponentSerializer textSerializer) {
+    public MySQLStorage(PacketFactory packetFactory, ConfigManager configManager, ActionRegistryImpl actionRegistry, NpcTypeRegistryImpl typeRegistry, EntityPropertyRegistryImpl propertyRegistry, LegacyComponentSerializer textSerializer) {
         this.packetFactory = packetFactory;
         this.configManager = configManager;
         this.actionRegistry = actionRegistry;
         this.typeRegistry = typeRegistry;
         this.propertyRegistry = propertyRegistry;
         this.textSerializer = textSerializer;
-        this.database = new MySQL(configManager.getConfig().databaseConfig().createConnectionURL("mysql"), logger);
+        this.database = new MySQL(configManager.getConfig().databaseConfig().createConnectionURL("mysql"),
+                configManager.getConfig().databaseConfig().username(), configManager.getConfig().databaseConfig().password(), logger);
         database.load();
         if (database.getSQLConnection() == null) {
             throw new RuntimeException("Failed to initialize MySQL Storage");
@@ -312,5 +313,10 @@ public class MySQLStorage implements NpcStorage {
             logger.severe("Failed to delete npc with id " + entry.getId());
             exception.printStackTrace();
         }
+    }
+
+    @Override
+    public void close() {
+        database.close();
     }
 }

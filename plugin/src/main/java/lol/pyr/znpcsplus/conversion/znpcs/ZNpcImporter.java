@@ -4,17 +4,15 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+import lol.pyr.znpcsplus.api.interaction.InteractionAction;
 import lol.pyr.znpcsplus.api.interaction.InteractionType;
 import lol.pyr.znpcsplus.api.skin.SkinDescriptor;
 import lol.pyr.znpcsplus.config.ConfigManager;
 import lol.pyr.znpcsplus.conversion.DataImporter;
-import lol.pyr.znpcsplus.conversion.znpcs.model.ZNpcsAction;
-import lol.pyr.znpcsplus.conversion.znpcs.model.ZNpcsLocation;
-import lol.pyr.znpcsplus.conversion.znpcs.model.ZNpcsModel;
+import lol.pyr.znpcsplus.conversion.znpcs.model.*;
 import lol.pyr.znpcsplus.entity.EntityPropertyImpl;
 import lol.pyr.znpcsplus.entity.EntityPropertyRegistryImpl;
 import lol.pyr.znpcsplus.hologram.HologramImpl;
-import lol.pyr.znpcsplus.interaction.InteractionActionImpl;
 import lol.pyr.znpcsplus.interaction.consolecommand.ConsoleCommandAction;
 import lol.pyr.znpcsplus.interaction.message.MessageAction;
 import lol.pyr.znpcsplus.interaction.playerchat.PlayerChatAction;
@@ -56,6 +54,7 @@ public class ZNpcImporter implements DataImporter {
     private final EntityPropertyRegistryImpl propertyRegistry;
     private final MojangSkinCache skinCache;
     private final File dataFile;
+    private final File conversationFile;
     private final Gson gson;
     private final BungeeConnector bungeeConnector;
 
@@ -72,6 +71,7 @@ public class ZNpcImporter implements DataImporter {
         this.propertyRegistry = propertyRegistry;
         this.skinCache = skinCache;
         this.dataFile = dataFile;
+        this.conversationFile = new File(dataFile.getParentFile(), "conversations.json");
         this.bungeeConnector = bungeeConnector;
         gson = new GsonBuilder()
                 .create();
@@ -88,6 +88,19 @@ public class ZNpcImporter implements DataImporter {
             return Collections.emptyList();
         }
         if (models == null) return Collections.emptyList();
+
+
+        ZnpcsConversations[] conversations;
+        try (BufferedReader fileReader = Files.newBufferedReader(conversationFile.toPath())) {
+            JsonElement element = JsonParser.parseReader(fileReader);
+            conversations = gson.fromJson(element, ZnpcsConversations[].class);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+        if (conversations == null) return Collections.emptyList();
+
+
         ArrayList<NpcEntryImpl> entries = new ArrayList<>(models.length);
         for (ZNpcsModel model : models) {
             String type = model.getNpcType();
@@ -107,8 +120,44 @@ public class ZNpcImporter implements DataImporter {
             NpcImpl npc = new NpcImpl(uuid, propertyRegistry, configManager, packetFactory, textSerializer, oldLoc.getWorld(), typeRegistry.getByName(type), location);
             npc.getType().applyDefaultProperties(npc);
 
+
+            // Convert the conversations from each NPC
+            ZNpcsConversation conversation = model.getConversation();
+            if (conversation != null) {
+
+                // Loop through all conversations in the conversations.json file
+                for (ZnpcsConversations conv : conversations) {
+
+                    // If the conversation name matches the conversation name in the data.json file, proceed
+                    if (conv.getName().equalsIgnoreCase(conversation.getConversationName())) {
+
+                        int totalDelay = 0;
+
+                        // Loop through all texts in the conversation
+                        for(ZNpcsConversationText text : conv.getTexts()) {
+
+                            // Add the delay in ticks to the total delay
+                            totalDelay += text.getDelay() * 20;
+
+                            // Get the lines of text from the conversation
+                            String[] lines = text.getLines();
+
+                            // Loop through all lines of text
+                            for (String line : lines) {
+
+                                // Create a new message action for each line of text
+                                InteractionAction action = new MessageAction(adventure, textSerializer, line, InteractionType.ANY_CLICK, 0, totalDelay);
+                                npc.addAction(action);
+                            }
+                        }
+                    }
+                }
+            }
+
+
             HologramImpl hologram = npc.getHologram();
             hologram.setOffset(model.getHologramHeight());
+            Collections.reverse(model.getHologramLines());
             for (String raw : model.getHologramLines()) {
                 Component line = textSerializer.deserialize(raw);
                 hologram.addTextLineComponent(line);
@@ -132,7 +181,7 @@ public class ZNpcImporter implements DataImporter {
                 npc.setProperty(propertyRegistry.getByName("skin", SkinDescriptor.class), new PrefetchedDescriptor(new SkinImpl(model.getSkin(), model.getSignature())));
             }
 
-            Map<String, Object> toggleValues = model.getNpcToggleValues();
+            Map<String, Object> toggleValues = model.getNpcToggleValues() == null ? model.getNpcFunctions() : model.getNpcToggleValues();
             if (toggleValues != null) {
                 if (toggleValues.containsKey("look")) {
                     npc.setProperty(propertyRegistry.getByName("look", LookType.class), LookType.CLOSEST_PLAYER);
@@ -173,7 +222,7 @@ public class ZNpcImporter implements DataImporter {
         throw new IllegalArgumentException("Couldn't adapt znpcs click type: " + clickType);
     }
 
-    private InteractionActionImpl adaptAction(String type, InteractionType clickType, String parameter, int cooldown) {
+    private InteractionAction adaptAction(String type, InteractionType clickType, String parameter, int cooldown) {
         switch (type.toLowerCase()) {
             case "cmd":
                 return new PlayerCommandAction(taskScheduler, parameter, clickType, cooldown * 1000L, 0);
@@ -182,9 +231,9 @@ public class ZNpcImporter implements DataImporter {
             case "chat":
                 return new PlayerChatAction(taskScheduler, parameter, clickType, cooldown * 1000L, 0);
             case "message":
-                return new MessageAction(adventure, parameter, clickType, textSerializer, cooldown * 1000L, 0);
+                return new MessageAction(adventure, textSerializer, parameter, clickType, cooldown * 1000L, 0);
             case "server":
-                return new SwitchServerAction(parameter, clickType, cooldown * 1000L, 0, bungeeConnector);
+                return new SwitchServerAction(bungeeConnector, parameter, clickType, cooldown * 1000L, 0);
         }
         throw new IllegalArgumentException("Couldn't adapt znpcs click action: " + type);
     }

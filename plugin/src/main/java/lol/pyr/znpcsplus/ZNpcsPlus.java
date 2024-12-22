@@ -14,6 +14,7 @@ import lol.pyr.director.adventure.parse.primitive.FloatParser;
 import lol.pyr.director.adventure.parse.primitive.IntegerParser;
 import lol.pyr.director.common.message.Message;
 import lol.pyr.znpcsplus.api.NpcApiProvider;
+import lol.pyr.znpcsplus.api.NpcPropertyRegistryProvider;
 import lol.pyr.znpcsplus.api.interaction.InteractionType;
 import lol.pyr.znpcsplus.commands.*;
 import lol.pyr.znpcsplus.commands.action.*;
@@ -22,12 +23,14 @@ import lol.pyr.znpcsplus.commands.property.PropertyRemoveCommand;
 import lol.pyr.znpcsplus.commands.property.PropertySetCommand;
 import lol.pyr.znpcsplus.commands.storage.ImportCommand;
 import lol.pyr.znpcsplus.commands.storage.LoadAllCommand;
+import lol.pyr.znpcsplus.commands.storage.MigrateCommand;
 import lol.pyr.znpcsplus.commands.storage.SaveAllCommand;
 import lol.pyr.znpcsplus.config.ConfigManager;
 import lol.pyr.znpcsplus.conversion.DataImporterRegistry;
 import lol.pyr.znpcsplus.entity.EntityPropertyImpl;
 import lol.pyr.znpcsplus.entity.EntityPropertyRegistryImpl;
-import lol.pyr.znpcsplus.interaction.ActionRegistry;
+import lol.pyr.znpcsplus.interaction.ActionFactoryImpl;
+import lol.pyr.znpcsplus.interaction.ActionRegistryImpl;
 import lol.pyr.znpcsplus.interaction.InteractionPacketListener;
 import lol.pyr.znpcsplus.npc.*;
 import lol.pyr.znpcsplus.packets.*;
@@ -37,11 +40,13 @@ import lol.pyr.znpcsplus.scheduling.SpigotScheduler;
 import lol.pyr.znpcsplus.scheduling.TaskScheduler;
 import lol.pyr.znpcsplus.skin.cache.MojangSkinCache;
 import lol.pyr.znpcsplus.skin.cache.SkinCacheCleanTask;
+import lol.pyr.znpcsplus.storage.NpcStorageType;
 import lol.pyr.znpcsplus.tasks.HologramRefreshTask;
 import lol.pyr.znpcsplus.tasks.NpcProcessorTask;
 import lol.pyr.znpcsplus.tasks.ViewableHideOnLeaveListener;
 import lol.pyr.znpcsplus.updater.UpdateChecker;
 import lol.pyr.znpcsplus.updater.UpdateNotificationListener;
+import lol.pyr.znpcsplus.user.ClientPacketListener;
 import lol.pyr.znpcsplus.user.UserListener;
 import lol.pyr.znpcsplus.user.UserManager;
 import lol.pyr.znpcsplus.util.*;
@@ -76,12 +81,23 @@ public class ZNpcsPlus {
     private final PacketEventsAPI<Plugin> packetEvents;
     private final ZNpcsPlusBootstrap bootstrap;
 
+    private final ConfigManager configManager;
+    private final MojangSkinCache skinCache;
+    private final EntityPropertyRegistryImpl propertyRegistry;
+
     public ZNpcsPlus(ZNpcsPlusBootstrap bootstrap) {
         this.bootstrap = bootstrap;
         packetEvents = SpigotPacketEventsBuilder.build(bootstrap);
         PacketEvents.setAPI(packetEvents);
         packetEvents.getSettings().checkForUpdates(false);
         packetEvents.load();
+
+        configManager = new ConfigManager(getDataFolder());
+        skinCache = new MojangSkinCache(configManager, new File(getDataFolder(), "skins"));
+        propertyRegistry = new EntityPropertyRegistryImpl(skinCache, configManager);
+
+        NpcPropertyRegistryProvider.register(propertyRegistry);
+        shutdownTasks.add(NpcPropertyRegistryProvider::unregister);
     }
 
     private void log(String str) {
@@ -111,13 +127,13 @@ public class ZNpcsPlus {
         TaskScheduler scheduler = FoliaUtil.isFolia() ? new FoliaScheduler(bootstrap) : new SpigotScheduler(bootstrap);
         shutdownTasks.add(scheduler::cancelAll);
 
-        ConfigManager configManager = new ConfigManager(getDataFolder());
-        MojangSkinCache skinCache = new MojangSkinCache(configManager);
-        EntityPropertyRegistryImpl propertyRegistry = new EntityPropertyRegistryImpl(skinCache, configManager);
-        PacketFactory packetFactory = setupPacketFactory(scheduler, propertyRegistry, configManager);
-        propertyRegistry.registerTypes(packetFactory, textSerializer);
 
-        ActionRegistry actionRegistry = new ActionRegistry();
+        PacketFactory packetFactory = setupPacketFactory(scheduler, propertyRegistry, configManager);
+        propertyRegistry.registerTypes(bootstrap, packetFactory, textSerializer, scheduler);
+
+        BungeeConnector bungeeConnector = new BungeeConnector(bootstrap);
+        ActionRegistryImpl actionRegistry = new ActionRegistryImpl();
+        ActionFactoryImpl actionFactory = new ActionFactoryImpl(scheduler, adventure, textSerializer, bungeeConnector);
         NpcTypeRegistryImpl typeRegistry = new NpcTypeRegistryImpl();
         NpcRegistryImpl npcRegistry = new NpcRegistryImpl(configManager, this, packetFactory, actionRegistry,
                 scheduler, typeRegistry, propertyRegistry, textSerializer);
@@ -125,37 +141,34 @@ public class ZNpcsPlus {
 
         UserManager userManager = new UserManager();
         shutdownTasks.add(userManager::shutdown);
-        
-        BungeeConnector bungeeConnector = new BungeeConnector(bootstrap);
+
         DataImporterRegistry importerRegistry = new DataImporterRegistry(configManager, adventure,
                 scheduler, packetFactory, textSerializer, typeRegistry, getDataFolder().getParentFile(),
                 propertyRegistry, skinCache, npcRegistry, bungeeConnector);
 
-        log(ChatColor.WHITE + " * Registerring components...");
+        log(ChatColor.WHITE + " * Registering components...");
 
         bungeeConnector.registerChannel();
         shutdownTasks.add(bungeeConnector::unregisterChannel);
 
         typeRegistry.registerDefault(packetEvents, propertyRegistry);
         actionRegistry.registerTypes(scheduler, adventure, textSerializer, bungeeConnector);
-        packetEvents.getEventManager().registerListener(new InteractionPacketListener(userManager, npcRegistry, scheduler), PacketListenerPriority.MONITOR);
+        packetEvents.getEventManager().registerListener(new InteractionPacketListener(userManager, npcRegistry, typeRegistry, scheduler), PacketListenerPriority.MONITOR);
+        packetEvents.getEventManager().registerListener(new ClientPacketListener(configManager), PacketListenerPriority.LOWEST);
         new Metrics(bootstrap, 18244);
         pluginManager.registerEvents(new UserListener(userManager), bootstrap);
 
         registerCommands(npcRegistry, skinCache, adventure, actionRegistry,
-                typeRegistry, propertyRegistry, importerRegistry, configManager);
+                typeRegistry, propertyRegistry, importerRegistry, configManager, packetFactory);
 
         log(ChatColor.WHITE + " * Starting tasks...");
         if (configManager.getConfig().checkForUpdates()) {
             UpdateChecker updateChecker = new UpdateChecker(getDescription());
-            scheduler.runLaterAsync(() -> {
-                scheduler.runDelayedTimerAsync(updateChecker, 0L, 6000L);
-                shutdownTasks.add(updateChecker::shutdown);
-            }, 5L);
+            scheduler.runDelayedTimerAsync(updateChecker, 5L, 6000L);
             pluginManager.registerEvents(new UpdateNotificationListener(this, adventure, updateChecker, scheduler), bootstrap);
         }
 
-        scheduler.runDelayedTimerAsync(new NpcProcessorTask(npcRegistry, propertyRegistry), 60L, 3L);
+        scheduler.runDelayedTimerAsync(new NpcProcessorTask(npcRegistry, propertyRegistry, userManager), 60L, 3L);
         scheduler.runDelayedTimerAsync(new HologramRefreshTask(npcRegistry), 60L, 20L);
         scheduler.runDelayedTimerAsync(new SkinCacheCleanTask(skinCache), 1200, 1200);
         pluginManager.registerEvents(new ViewableHideOnLeaveListener(), bootstrap);
@@ -180,7 +193,7 @@ public class ZNpcsPlus {
             }
         }
 
-        NpcApiProvider.register(bootstrap, new ZNpcsPlusApi(npcRegistry, typeRegistry, propertyRegistry, skinCache));
+        NpcApiProvider.register(bootstrap, new ZNpcsPlusApi(npcRegistry, typeRegistry, propertyRegistry, actionRegistry, actionFactory, skinCache));
         log(ChatColor.WHITE + " * Loading complete! (" + (System.currentTimeMillis() - before) + "ms)");
         log("");
 
@@ -218,6 +231,7 @@ public class ZNpcsPlus {
         versions.put(ServerVersion.V_1_17, LazyLoader.of(() -> new V1_17PacketFactory(scheduler, packetEvents, propertyRegistry, textSerializer, configManager)));
         versions.put(ServerVersion.V_1_19_3, LazyLoader.of(() -> new V1_19_3PacketFactory(scheduler, packetEvents, propertyRegistry, textSerializer, configManager)));
         versions.put(ServerVersion.V_1_20_2, LazyLoader.of(() -> new V1_20_2PacketFactory(scheduler, packetEvents, propertyRegistry, textSerializer, configManager)));
+        versions.put(ServerVersion.V_1_21_3, LazyLoader.of(() -> new V1_21_3PacketFactory(scheduler, packetEvents, propertyRegistry, textSerializer, configManager)));
 
         ServerVersion version = packetEvents.getServerManager().getVersion();
         if (versions.containsKey(version)) return versions.get(version).get();
@@ -230,9 +244,9 @@ public class ZNpcsPlus {
     }
 
     private void registerCommands(NpcRegistryImpl npcRegistry, MojangSkinCache skinCache, BukkitAudiences adventure,
-                                  ActionRegistry actionRegistry, NpcTypeRegistryImpl typeRegistry,
+                                  ActionRegistryImpl actionRegistry, NpcTypeRegistryImpl typeRegistry,
                                   EntityPropertyRegistryImpl propertyRegistry, DataImporterRegistry importerRegistry,
-                                  ConfigManager configManager) {
+                                  ConfigManager configManager, PacketFactory packetFactory) {
 
         Message<CommandContext> incorrectUsageMessage = context -> context.send(Component.text("Incorrect usage: /" + context.getUsage(), NamedTextColor.RED));
         CommandManager manager = new CommandManager(bootstrap, adventure, incorrectUsageMessage);
@@ -278,10 +292,16 @@ public class ZNpcsPlus {
         registerEnumParser(manager, SnifferState.class, incorrectUsageMessage);
         registerEnumParser(manager, RabbitType.class, incorrectUsageMessage);
         registerEnumParser(manager, AttachDirection.class, incorrectUsageMessage);
+        registerEnumParser(manager, Sound.class, incorrectUsageMessage);
+        registerEnumParser(manager, ArmadilloState.class, incorrectUsageMessage);
+        registerEnumParser(manager, WoldVariant.class, incorrectUsageMessage);
+        registerEnumParser(manager, NpcStorageType.class, incorrectUsageMessage);
+        registerEnumParser(manager, SkeletonType.class, incorrectUsageMessage);
 
         manager.registerCommand("npc", new MultiCommand(bootstrap.loadHelpMessage("root"))
                 .addSubcommand("center", new CenterCommand(npcRegistry))
                 .addSubcommand("create", new CreateCommand(npcRegistry, typeRegistry))
+                .addSubcommand("clone", new CloneCommand(npcRegistry))
                 .addSubcommand("reloadconfig", new ReloadConfigCommand(configManager))
                 .addSubcommand("toggle", new ToggleCommand(npcRegistry))
                 .addSubcommand("skin", new SkinCommand(skinCache, npcRegistry, typeRegistry, propertyRegistry))
@@ -301,7 +321,8 @@ public class ZNpcsPlus {
                 .addSubcommand("storage", new MultiCommand(bootstrap.loadHelpMessage("storage"))
                         .addSubcommand("save", new SaveAllCommand(npcRegistry))
                         .addSubcommand("reload", new LoadAllCommand(npcRegistry))
-                        .addSubcommand("import", new ImportCommand(npcRegistry, importerRegistry)))
+                        .addSubcommand("import", new ImportCommand(npcRegistry, importerRegistry))
+                        .addSubcommand("migrate", new MigrateCommand(configManager, this, packetFactory, actionRegistry, typeRegistry, propertyRegistry, textSerializer, npcRegistry.getStorage(), configManager.getConfig().storageType(), npcRegistry)))
                 .addSubcommand("holo", new MultiCommand(bootstrap.loadHelpMessage("holo"))
                         .addSubcommand("add", new HoloAddCommand(npcRegistry))
                         .addSubcommand("additem", new HoloAddItemCommand(npcRegistry))

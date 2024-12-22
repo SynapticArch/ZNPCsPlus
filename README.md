@@ -5,7 +5,7 @@
 that players can interact with to perform actions like switching servers on a network or executing commands.
 
 This plugin is a remake of a plugin called ZNPCs, we originally started because the maintainer of ZNPCs decided to announce that he was 
-[dropping support for the plugin](https://media.discordapp.net/attachments/1093914615873806477/1098409384855474237/znpc.png).
+[dropping support for the plugin](https://github.com/Pyrbu/ZNPCsPlus/blob/2.X/.github/znpc.png?raw=true).
 
 Looking for up-to-date builds of the plugin? Check out our [Jenkins](https://ci.pyr.lol/job/ZNPCsPlus/)
 
@@ -19,7 +19,7 @@ Looking for up-to-date builds of the plugin? Check out our [Jenkins](https://ci.
 ### Requirements, Extensions & Supported Software
 Requirements:
 - Java 8+
-- Minecraft 1.8 - 1.20.4
+- Minecraft 1.8 - 1.21
 
 Supported Softwares:
 - Spigot ([Website](https://www.spigotmc.org/))
@@ -40,10 +40,9 @@ Open an issue in the GitHub [issue tracker](https://github.com/Pyrbu/ZNPCsPlus/i
 
 ## Credits
 - [PacketEvents 2.0](https://github.com/retrooper/packetevents) - Packet library
-- [wiki.vg](https://wiki.vg/Main_Page) - Minecraft protocol documentation
+- [Minecraft Wiki Protocol (formally wiki.vg)](https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Main_Page) - Minecraft protocol documentation
 - [gson](https://github.com/google/gson) - JSON parsing library made by Google
 - [Mineskin.org](https://mineskin.org/) - Website for raw skin file uploads
-- [SpigotResourcesAPI](https://github.com/robertlit/SpigotResourcesAPI/) - Spigot API wrapper used for updater
 - [adventure](https://docs.advntr.dev/) - Minecraft text api
 - [DazzleConf](https://github.com/A248/DazzleConf) - Configuration library
 - [Director](https://github.com/Pyrbu/Director) - Command library

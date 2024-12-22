@@ -1,25 +1,28 @@
 package lol.pyr.znpcsplus.hologram;
 
 import com.github.retrooper.packetevents.protocol.entity.type.EntityType;
+import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import lol.pyr.znpcsplus.api.entity.EntityProperty;
 import lol.pyr.znpcsplus.api.entity.PropertyHolder;
 import lol.pyr.znpcsplus.entity.PacketEntity;
 import lol.pyr.znpcsplus.packets.PacketFactory;
 import lol.pyr.znpcsplus.util.NpcLocation;
+import lol.pyr.znpcsplus.util.Viewable;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 public class HologramLine<M> implements PropertyHolder {
     private M value;
     private final PacketEntity entity;
     private final Set<EntityProperty<?>> properties;
 
-    public HologramLine(M value, PacketFactory packetFactory, EntityType type, NpcLocation location) {
+    public HologramLine(Viewable viewable, M value, PacketFactory packetFactory, EntityType type, NpcLocation location) {
         this.value = value;
-        this.entity = new PacketEntity(packetFactory, this, type, location);
+        this.entity = new PacketEntity(packetFactory, this, viewable, type, location);
         this.properties = new HashSet<>();
     }
 
@@ -35,16 +38,16 @@ public class HologramLine<M> implements PropertyHolder {
         entity.refreshMeta(player);
     }
 
-    protected void show(Player player) {
-        entity.spawn(player);
+    protected CompletableFuture<Void> show(Player player) {
+        return entity.spawn(player);
     }
 
     protected void hide(Player player) {
         entity.despawn(player);
     }
 
-    public void setLocation(NpcLocation location, Collection<Player> viewers) {
-        entity.setLocation(location, viewers);
+    public void setLocation(NpcLocation location) {
+        entity.setLocation(location);
     }
 
     public int getEntityId() {
@@ -68,6 +71,17 @@ public class HologramLine<M> implements PropertyHolder {
     @Override
     public <T> void setProperty(EntityProperty<T> key, T value) {
         throw new UnsupportedOperationException("Can't set properties on a hologram line");
+    }
+
+    @Override
+    public void setItemProperty(EntityProperty<?> key, ItemStack value) {
+        throw new UnsupportedOperationException("Can't set properties on a hologram line");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public ItemStack getItemProperty(EntityProperty<?> key) {
+        return SpigotConversionUtil.toBukkitItemStack(((EntityProperty<com.github.retrooper.packetevents.protocol.item.ItemStack>) key).getDefaultValue());
     }
 
     @Override

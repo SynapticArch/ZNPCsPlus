@@ -47,8 +47,8 @@ public class V1_8PacketFactory implements PacketFactory {
     }
 
     @Override
-    public void spawnPlayer(Player player, PacketEntity entity, PropertyHolder properties) {
-        addTabPlayer(player, entity, properties).thenAccept(ignored -> {
+    public CompletableFuture<Void> spawnPlayer(Player player, PacketEntity entity, PropertyHolder properties) {
+        return addTabPlayer(player, entity, properties).thenAccept(ignored -> {
             createTeam(player, entity, properties.getProperty(propertyRegistry.getByName("glow", NamedColor.class)));
             NpcLocation location = entity.getLocation();
             sendPacket(player, new WrapperPlayServerSpawnPlayer(entity.getEntityId(),
@@ -96,7 +96,8 @@ public class V1_8PacketFactory implements PacketFactory {
         CompletableFuture<Void> future = new CompletableFuture<>();
         skinned(player, properties, new UserProfile(entity.getUuid(), Integer.toString(entity.getEntityId()))).thenAccept(profile -> {
             sendPacket(player, new WrapperPlayServerPlayerInfo(
-                    WrapperPlayServerPlayerInfo.Action.ADD_PLAYER, new WrapperPlayServerPlayerInfo.PlayerData(Component.text(configManager.getConfig().tabDisplayName().replace("{id}", Integer.toString(entity.getEntityId()))),
+                    WrapperPlayServerPlayerInfo.Action.ADD_PLAYER, new WrapperPlayServerPlayerInfo.PlayerData(
+                            Component.text(configManager.getConfig().tabDisplayName().replace("{id}", Integer.toString(entity.getEntityId()))),
                     profile, GameMode.CREATIVE, 1)));
             future.complete(null);
         });
@@ -152,6 +153,11 @@ public class V1_8PacketFactory implements PacketFactory {
         sendPacket(player, new WrapperPlayServerEntityEquipment(entity.getEntityId(), Collections.singletonList(equipment)));
     }
 
+    @Override
+    public void setPassengers(Player player, int vehicleEntityId, int... passengers) {
+        sendPacket(player, new WrapperPlayServerSetPassengers(vehicleEntityId, passengers));
+    }
+
     protected void sendPacket(Player player, PacketWrapper<?> packet) {
         packetEvents.getPlayerManager().sendPacket(player, packet);
     }
@@ -173,5 +179,12 @@ public class V1_8PacketFactory implements PacketFactory {
 
     protected void add(Map<Integer, EntityData> map, EntityData data) {
         map.put(data.getIndex(), data);
+    }
+
+    @Override
+    public void sendHandSwing(Player player, PacketEntity entity, boolean offHand) {
+        sendPacket(player, new WrapperPlayServerEntityAnimation(entity.getEntityId(), offHand ?
+                WrapperPlayServerEntityAnimation.EntityAnimationType.SWING_OFF_HAND :
+                WrapperPlayServerEntityAnimation.EntityAnimationType.SWING_MAIN_ARM));
     }
 }

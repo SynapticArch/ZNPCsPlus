@@ -9,6 +9,7 @@ import com.github.retrooper.packetevents.protocol.nbt.NBTInt;
 import com.github.retrooper.packetevents.protocol.nbt.NBTString;
 import com.github.retrooper.packetevents.protocol.player.EquipmentSlot;
 import com.github.retrooper.packetevents.protocol.world.BlockFace;
+import lol.pyr.znpcsplus.ZNpcsPlusBootstrap;
 import lol.pyr.znpcsplus.api.entity.EntityProperty;
 import lol.pyr.znpcsplus.api.entity.EntityPropertyRegistry;
 import lol.pyr.znpcsplus.api.skin.SkinDescriptor;
@@ -19,28 +20,31 @@ import lol.pyr.znpcsplus.entity.properties.villager.VillagerProfessionProperty;
 import lol.pyr.znpcsplus.entity.properties.villager.VillagerTypeProperty;
 import lol.pyr.znpcsplus.entity.serializers.*;
 import lol.pyr.znpcsplus.packets.PacketFactory;
+import lol.pyr.znpcsplus.scheduling.TaskScheduler;
 import lol.pyr.znpcsplus.skin.cache.MojangSkinCache;
 import lol.pyr.znpcsplus.util.*;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Color;
 import org.bukkit.DyeColor;
+import org.bukkit.Sound;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 1.8  <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=7415">...</a>
- * 1.9  <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=7968">...</a>
- * 1.10 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=8241">...</a>
- * 1.11 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=8534">...</a>
- * 1.12 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=14048">...</a>
- * 1.13 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=14800">...</a>
- * 1.14 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=15240">...</a>
- * 1.15 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=15991">...</a>
- * 1.16 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=16539">...</a>
- * 1.17 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=17521">...</a>
- * 1.18-1.19 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=18191">...</a>
- * 1.20 <a href="https://wiki.vg/index.php?title=Entity_metadata">...</a>
+ * 1.8  <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2767708">...</a>
+ * 1.9  <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768074">...</a>
+ * 1.10 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768201">...</a>
+ * 1.11 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768444">...</a>
+ * 1.12 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768647">...</a>
+ * 1.13 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768701">...</a>
+ * 1.14 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768716">...</a>
+ * 1.15 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768877">...</a>
+ * 1.16 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2769100">...</a>
+ * 1.17 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2769318">...</a>
+ * 1.18-1.19 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2769409">...</a>
+ * 1.20 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2769476">...</a>
+ * 1.21 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata">...</a>
  */
 @SuppressWarnings("unchecked")
 public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
@@ -84,6 +88,10 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         registerEnumSerializer(SnifferState.class);
         registerEnumSerializer(RabbitType.class);
         registerEnumSerializer(AttachDirection.class);
+        registerEnumSerializer(Sound.class);
+        registerEnumSerializer(ArmadilloState.class);
+        registerEnumSerializer(WoldVariant.class);
+        registerEnumSerializer(SkeletonType.class);
 
         registerPrimitiveSerializers(Integer.class, Boolean.class, Double.class, Float.class, Long.class, Short.class, Byte.class, String.class);
 
@@ -92,22 +100,14 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         /*
         registerType("using_item", false); // TODO: fix it for 1.8 and add new property to use offhand item and riptide animation
 
-        // End Crystal
-        registerType("beam_target", null); // TODO: Make a block pos class for this
-        registerType("show_base", true); // TODO
-
         // Enderman
         registerType("enderman_held_block", new BlockState(0)); // TODO: figure out the type on this
         registerType("enderman_screaming", false); // TODO
         registerType("enderman_staring", false); // TODO
-
-        // Guardian
-        registerType("is_elder", false); // TODO: ensure it only works till 1.10. Note: index is wrong on wiki.vg
-
          */
     }
 
-    public void registerTypes(PacketFactory packetFactory, LegacyComponentSerializer textSerializer) {
+    public void registerTypes(ZNpcsPlusBootstrap plugin, PacketFactory packetFactory, LegacyComponentSerializer textSerializer, TaskScheduler taskScheduler) {
         ServerVersion ver = PacketEvents.getAPI().getServerManager().getVersion();
         boolean legacyBooleans = ver.isOlderThan(ServerVersion.V_1_9);
         boolean legacyNames = ver.isOlderThan(ServerVersion.V_1_9);
@@ -129,6 +129,22 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         register(new DummyProperty<>("view_distance", configManager.getConfig().viewDistance()));
 
         register(new DummyProperty<>("permission_required", false));
+
+        register(new ForceBodyRotationProperty(plugin, taskScheduler));
+
+        register(new DummyProperty<>("player_knockback", false));
+        register(new DummyProperty<>("player_knockback_exempt_permission", String.class));
+        register(new DummyProperty<>("player_knockback_distance", 0.4));
+        register(new DummyProperty<>("player_knockback_vertical", 0.4));
+        register(new DummyProperty<>("player_knockback_horizontal", 0.9));
+        register(new DummyProperty<>("player_knockback_cooldown", 1500));
+        register(new DummyProperty<>("player_knockback_sound", false));
+        register(new DummyProperty<>("player_knockback_sound_volume", 1.0f));
+        register(new DummyProperty<>("player_knockback_sound_pitch", 1.0f));
+        register(new DummyProperty<>("player_knockback_sound_name", Sound.valueOf(
+            PacketEvents.getAPI().getServerManager().getVersion().isOlderThan(ServerVersion.V_1_9) ?
+                    "VILLAGER_NO" : "ENTITY_VILLAGER_NO"
+        )));
 
         register(new GlowProperty(packetFactory));
         register(new BitsetProperty("fire", 0, 0x01));
@@ -162,7 +178,13 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         else if (ver.isNewerThanOrEquals(ServerVersion.V_1_10)) babyIndex = 12;
         else if (ver.isNewerThanOrEquals(ServerVersion.V_1_9)) babyIndex = 11;
         else babyIndex = 12;
-        register(new BooleanProperty("baby", babyIndex, false, legacyBooleans));
+        if (ver.isOlderThan(ServerVersion.V_1_9)) {
+            register(new EncodedByteProperty<>("baby", false, babyIndex, obj -> (byte) (obj ? -1 : 0)));
+        } else {
+            register(new BooleanProperty("baby", babyIndex, false, legacyBooleans));
+        }
+
+        register(new EntitySittingProperty(packetFactory, this));
 
         // Player
         register(new DummyProperty<>("skin", SkinDescriptor.class, false));
@@ -377,6 +399,15 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         register(new EncodedByteProperty<>("sheep_color", DyeColor.WHITE, sheepIndex, DyeColor::getWoolData));
         register(new BitsetProperty("sheep_sheared", sheepIndex, 0x10, false, legacyBooleans)); // no need to link because sheep_sheared is only visible when sheep_color is WHITE
 
+        // Villager
+        int villagerIndex;
+        if (ver.isOlderThan(ServerVersion.V_1_14)) {
+            if (ver.isNewerThanOrEquals(ServerVersion.V_1_10)) villagerIndex = 13;
+            else if (ver.isNewerThanOrEquals(ServerVersion.V_1_9)) villagerIndex = 12;
+            else villagerIndex = 16;
+            register(new EncodedIntegerProperty<>("villager_profession", VillagerProfession.NONE, villagerIndex, VillagerProfession::getLegacyId));
+        }
+
         // Wolf
         int wolfIndex;
         if (ver.isNewerThanOrEquals(ServerVersion.V_1_17)) wolfIndex = 19;
@@ -390,7 +421,7 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
             register(new EncodedByteProperty<>("wolf_collar", DyeColor.BLUE, wolfIndex++, DyeColor::getDyeData));
         } else register(new EncodedIntegerProperty<>("wolf_collar", DyeColor.RED, wolfIndex++, Enum::ordinal));
         if (ver.isNewerThanOrEquals(ServerVersion.V_1_16)) {
-            register(new EncodedIntegerProperty<>("wolf_angry", false, wolfIndex, b -> b ? 1 : 0));
+            register(new EncodedIntegerProperty<>("wolf_angry", false, wolfIndex++, b -> b ? 1 : 0));
             linkProperties("tamed", "sitting");
         }
         else {
@@ -408,6 +439,12 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         else witherIndex = 17;
         witherIndex += 3; // skip the first 3 indexes, will be used for the other properties later
         register(new IntegerProperty("invulnerable_time", witherIndex, 0, false));
+
+        // Skeleton
+        if (ver.isOlderThan(ServerVersion.V_1_11)) {
+            if (legacyBooleans) register(new EncodedByteProperty<>("skeleton_type", SkeletonType.NORMAL, 13, SkeletonType::getLegacyId));
+            else register(new EncodedIntegerProperty<>("skeleton_type", SkeletonType.NORMAL, ver.isOlderThan(ServerVersion.V_1_10) ? 11 : 12, Enum::ordinal));
+        }
 
         if (!ver.isNewerThanOrEquals(ServerVersion.V_1_9)) return;
         // Shulker
@@ -505,12 +542,8 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         register(new CustomTypeProperty<>("pose", 6, NpcPose.STANDING, EntityDataTypes.ENTITY_POSE, npcPose -> EntityPose.valueOf(npcPose.name())));
 
         // Villager
-        final int villagerIndex;
         if (ver.isNewerThanOrEquals(ServerVersion.V_1_17)) villagerIndex = 18;
         else if (ver.isNewerThanOrEquals(ServerVersion.V_1_15)) villagerIndex = 17;
-        else if (ver.isNewerThanOrEquals(ServerVersion.V_1_14)) villagerIndex = 16;
-        else if (ver.isNewerThanOrEquals(ServerVersion.V_1_10)) villagerIndex = 13;
-        else if (ver.isNewerThanOrEquals(ServerVersion.V_1_9)) villagerIndex = 12;
         else villagerIndex = 16;
         register(new VillagerTypeProperty("villager_type", villagerIndex, VillagerType.PLAINS));
         register(new VillagerProfessionProperty("villager_profession", villagerIndex, VillagerProfession.NONE));
@@ -617,13 +650,41 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         // Frog
         register(new EncodedIntegerProperty<>("frog_variant", FrogVariant.TEMPERATE, 17, Enum::ordinal, EntityDataTypes.FROG_VARIANT));
 
+        // Warden
+        register(new EncodedIntegerProperty<>("warden_anger", 0, 16, b -> Math.min(150, Math.max(0, b))));
+
         if (!ver.isNewerThanOrEquals(ServerVersion.V_1_20)) return;
 
         // Camel
-        register(new BooleanProperty("bashing", 18, false, legacyBooleans));
+        int camelIndex = 18;
+        register(new BooleanProperty("bashing", camelIndex++, false, legacyBooleans));
+        register(new CamelSittingProperty(6, camelIndex));
 
         // Sniffer
         register(new CustomTypeProperty<>("sniffer_state", 17, SnifferState.IDLING, EntityDataTypes.SNIFFER_STATE, state -> com.github.retrooper.packetevents.protocol.entity.sniffer.SnifferState.valueOf(state.name())));
+
+        if (!ver.isNewerThanOrEquals(ServerVersion.V_1_20_5)) return;
+        // Armadillo
+        register(new CustomTypeProperty<>("armadillo_state", 17, ArmadilloState.IDLE, EntityDataTypes.ARMADILLO_STATE, state ->
+                com.github.retrooper.packetevents.protocol.entity.armadillo.ArmadilloState.valueOf(state.name())));
+
+        // Wolf
+        register(new EncodedIntegerProperty<>("wolf_variant", WoldVariant.PALE, wolfIndex, WoldVariant::getId, EntityDataTypes.WOLF_VARIANT));
+
+        if (!ver.isNewerThanOrEquals(ServerVersion.V_1_21)) return;
+
+        // Bogged
+        register(new BooleanProperty("bogged_sheared", 16, false, legacyBooleans));
+
+        if (!ver.isNewerThanOrEquals(ServerVersion.V_1_21_2)) return;
+
+        // Creaking
+        register(new BooleanProperty("creaking_active", 17, false, legacyBooleans));
+
+        if (!ver.isNewerThanOrEquals(ServerVersion.V_1_21_4)) return;
+
+        // Creaking
+        register(new BooleanProperty("creaking_crumbling", 18, false, legacyBooleans));
     }
 
     private void registerSerializer(PropertySerializer<?> serializer) {

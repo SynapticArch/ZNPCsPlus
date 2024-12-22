@@ -115,7 +115,10 @@ public class NpcTypeImpl implements NpcType {
         public NpcTypeImpl build() {
             ServerVersion version = PacketEvents.getAPI().getServerManager().getVersion();
             addProperties("fire", "invisible", "silent", "look", "look_distance", "view_distance",
-                    "potion_color", "potion_ambient", "display_name", "permission_required");
+                    "potion_color", "potion_ambient", "display_name", "permission_required",
+                    "player_knockback", "player_knockback_exempt_permission", "player_knockback_distance", "player_knockback_vertical",
+                    "player_knockback_horizontal", "player_knockback_cooldown", "player_knockback_sound", "player_knockback_sound_name",
+                    "player_knockback_sound_volume", "player_knockback_sound_pitch");
             if (!type.equals(EntityTypes.PLAYER)) addProperties("dinnerbone");
             // TODO: make this look nicer after completing the rest of the properties
             if (version.isNewerThanOrEquals(ServerVersion.V_1_9)) addProperties("glow");
@@ -140,6 +143,9 @@ public class NpcTypeImpl implements NpcType {
             } else if (version.isOlderThan(ServerVersion.V_1_11) && type.equals(EntityTypes.HORSE)) {
                 addProperties("has_chest");
             }
+            if (version.isOlderThan(ServerVersion.V_1_11) && EntityTypes.isTypeInstanceOf(type, EntityTypes.SKELETON)) {
+                addProperties("skeleton_type");
+            }
             if (EntityTypes.isTypeInstanceOf(type, EntityTypes.ABSTRACT_EVO_ILLU_ILLAGER)) {
                 addProperties("spell");
             }
@@ -156,16 +162,27 @@ public class NpcTypeImpl implements NpcType {
             }
             if (EntityTypes.isTypeInstanceOf(type, EntityTypes.PANDA)) {
                 if (version.isNewerThanOrEquals(ServerVersion.V_1_15)) {
-                    addProperties("panda_rolling", "panda_sitting", "panda_on_back");
+                    addProperties("panda_rolling", "panda_sitting", "panda_on_back", "hand");
                 } else {
                     addProperties("panda_eating");
                 }
             }
-            if (EntityTypes.isTypeInstanceOf(type, EntityTypes.ABSTRACT_TAMEABLE_ANIMAL)) {
+            if (EntityTypes.isTypeInstanceOf(type, EntityTypes.ABSTRACT_TAMEABLE_ANIMAL) &&
+                    !(version.isNewerThanOrEquals(ServerVersion.V_1_14) && type.equals(EntityTypes.OCELOT))) {
                 addProperties("tamed", "sitting");
             }
             if (EntityTypes.isTypeInstanceOf(type, EntityTypes.GUARDIAN)) {
                 addProperties("is_retracting_spikes");
+            }
+            if (version.isNewerThanOrEquals(ServerVersion.V_1_20_5)) {
+                if (EntityTypes.isTypeInstanceOf(type, EntityTypes.WOLF)) {
+                    addProperties("wolf_variant");
+                }
+            }
+            if (version.isNewerThanOrEquals(ServerVersion.V_1_21_4)) {
+                if (EntityTypes.isTypeInstanceOf(type, EntityTypes.CREAKING)) {
+                    addProperties("creaking_crumbling");
+                }
             }
             return new NpcTypeImpl(name, type, hologramOffset, new HashSet<>(allowedProperties), defaultProperties);
         }

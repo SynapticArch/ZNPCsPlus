@@ -4,7 +4,7 @@ import lol.pyr.director.adventure.command.CommandContext;
 import lol.pyr.director.common.command.CommandExecutionException;
 import lol.pyr.znpcsplus.api.interaction.InteractionType;
 import lol.pyr.znpcsplus.interaction.InteractionActionImpl;
-import lol.pyr.znpcsplus.interaction.InteractionActionType;
+import lol.pyr.znpcsplus.api.interaction.InteractionActionType;
 import lol.pyr.znpcsplus.interaction.InteractionCommandHandler;
 import lol.pyr.znpcsplus.scheduling.TaskScheduler;
 
@@ -44,7 +44,7 @@ public class ConsoleCommandActionType implements InteractionActionType<ConsoleCo
 
     @Override
     public void appendUsage(CommandContext context) {
-        context.setUsage(context.getUsage() + " " + getSubcommandName() + " <id> <click type> <cooldown seconds> <delay ticks> <server>");
+        context.setUsage(context.getUsage() + " " + getSubcommandName() + " <id> <click type> <cooldown seconds> <delay ticks> <command>");
     }
 
     @Override

@@ -1,12 +1,17 @@
 package lol.pyr.znpcsplus.npc;
 
 import lol.pyr.znpcsplus.ZNpcsPlus;
+import lol.pyr.znpcsplus.api.entity.EntityProperty;
+import lol.pyr.znpcsplus.api.interaction.InteractionAction;
 import lol.pyr.znpcsplus.api.npc.NpcEntry;
 import lol.pyr.znpcsplus.api.npc.NpcRegistry;
 import lol.pyr.znpcsplus.api.npc.NpcType;
 import lol.pyr.znpcsplus.config.ConfigManager;
 import lol.pyr.znpcsplus.entity.EntityPropertyRegistryImpl;
-import lol.pyr.znpcsplus.interaction.ActionRegistry;
+import lol.pyr.znpcsplus.hologram.HologramItem;
+import lol.pyr.znpcsplus.hologram.HologramLine;
+import lol.pyr.znpcsplus.hologram.HologramText;
+import lol.pyr.znpcsplus.interaction.ActionRegistryImpl;
 import lol.pyr.znpcsplus.packets.PacketFactory;
 import lol.pyr.znpcsplus.scheduling.TaskScheduler;
 import lol.pyr.znpcsplus.storage.NpcStorage;
@@ -30,7 +35,7 @@ public class NpcRegistryImpl implements NpcRegistry {
     private final Map<String, NpcEntryImpl> npcIdLookupMap = new HashMap<>();
     private final Map<UUID, NpcEntryImpl> npcUuidLookupMap = new HashMap<>();
 
-    public NpcRegistryImpl(ConfigManager configManager, ZNpcsPlus plugin, PacketFactory packetFactory, ActionRegistry actionRegistry, TaskScheduler scheduler, NpcTypeRegistryImpl typeRegistry, EntityPropertyRegistryImpl propertyRegistry, LegacyComponentSerializer textSerializer) {
+    public NpcRegistryImpl(ConfigManager configManager, ZNpcsPlus plugin, PacketFactory packetFactory, ActionRegistryImpl actionRegistry, TaskScheduler scheduler, NpcTypeRegistryImpl typeRegistry, EntityPropertyRegistryImpl propertyRegistry, LegacyComponentSerializer textSerializer) {
         this.textSerializer = textSerializer;
         this.propertyRegistry = propertyRegistry;
         storage = configManager.getConfig().storageType().create(configManager, plugin, packetFactory, actionRegistry, typeRegistry, propertyRegistry, textSerializer);
@@ -153,6 +158,35 @@ public class NpcRegistryImpl implements NpcRegistry {
         return entry;
     }
 
+    public NpcEntryImpl clone(String id, String newId, World newWorld, NpcLocation newLocation) {
+        NpcEntryImpl oldNpc = getById(id);
+        if (oldNpc == null) return null;
+        NpcEntryImpl newNpc = create(newId, newWorld, oldNpc.getNpc().getType(), newLocation);
+        newNpc.enableEverything();
+
+        for (EntityProperty<?> property : oldNpc.getNpc().getAllProperties()) {
+            newNpc.getNpc().UNSAFE_setProperty(property, oldNpc.getNpc().getProperty(property));
+        }
+
+        for (InteractionAction action : oldNpc.getNpc().getActions()) {
+            newNpc.getNpc().addAction(action);
+        }
+
+        for (HologramLine<?> line : oldNpc.getNpc().getHologram().getLines()) {
+            if (line instanceof HologramText) {
+                HologramText text = (HologramText) line;
+                newNpc.getNpc().getHologram().addTextLineComponent(text.getValue());
+            }
+            else if (line instanceof HologramItem) {
+                HologramItem item = (HologramItem) line;
+                newNpc.getNpc().getHologram().addItemLinePEStack(item.getValue());
+            }
+            else throw new IllegalArgumentException("Unknown hologram line type during clone");
+        }
+
+        return newNpc;
+    }
+
     @Override
     public void delete(String id) {
         NpcEntryImpl entry = npcIdLookupMap.get(id.toLowerCase());
@@ -173,5 +207,10 @@ public class NpcRegistryImpl implements NpcRegistry {
 
     public void unload() {
         npcList.forEach(npcEntry -> npcEntry.getNpc().delete());
+        storage.close();
+    }
+
+    public NpcStorage getStorage() {
+        return storage;
     }
 }

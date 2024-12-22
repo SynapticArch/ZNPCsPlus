@@ -14,7 +14,7 @@ public class SwitchServerAction extends InteractionActionImpl {
     private final String server;
     private final BungeeConnector bungeeConnector;
 
-    public SwitchServerAction(String server, InteractionType interactionType, long cooldown, long delay, BungeeConnector bungeeConnector) {
+    public SwitchServerAction(BungeeConnector bungeeConnector, String server, InteractionType interactionType, long cooldown, long delay) {
         super(cooldown, delay, interactionType);
         this.server = server;
         this.bungeeConnector = bungeeConnector;
@@ -32,7 +32,7 @@ public class SwitchServerAction extends InteractionActionImpl {
                         .hoverEvent(HoverEvent.hoverEvent(HoverEvent.Action.SHOW_TEXT,
                                 Component.text("Click to edit this action", NamedTextColor.GRAY)))
                         .clickEvent(ClickEvent.clickEvent(ClickEvent.Action.SUGGEST_COMMAND,
-                                "/" + context.getLabel() + " action edit " + id + " " + index + " switcserver " + getInteractionType().name() + " " + getCooldown()/1000 + " " + getDelay() + " " + server))
+                                "/" + context.getLabel() + " action edit " + id + " " + index + " switchserver " + getInteractionType().name() + " " + getCooldown()/1000 + " " + getDelay() + " " + server))
                 .append(Component.text(" | ", NamedTextColor.GRAY))
                 .append(Component.text("[DELETE]", NamedTextColor.RED)
                         .hoverEvent(HoverEvent.hoverEvent(HoverEvent.Action.SHOW_TEXT,

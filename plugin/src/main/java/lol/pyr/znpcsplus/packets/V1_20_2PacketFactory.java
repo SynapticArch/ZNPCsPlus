@@ -16,6 +16,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 public class V1_20_2PacketFactory extends V1_19_3PacketFactory {
 
@@ -23,11 +24,12 @@ public class V1_20_2PacketFactory extends V1_19_3PacketFactory {
 
     public V1_20_2PacketFactory(TaskScheduler scheduler, PacketEventsAPI<Plugin> packetEvents, EntityPropertyRegistryImpl propertyRegistry, LegacyComponentSerializer textSerializer, ConfigManager configManager) {
         super(scheduler, packetEvents, propertyRegistry, textSerializer, configManager);
+        this.configManager = configManager;
     }
 
     @Override
-    public void spawnPlayer(Player player, PacketEntity entity, PropertyHolder properties) {
-        addTabPlayer(player, entity, properties).thenAccept(ignored -> {
+    public CompletableFuture<Void> spawnPlayer(Player player, PacketEntity entity, PropertyHolder properties) {
+        return addTabPlayer(player, entity, properties).thenAccept(ignored -> {
             createTeam(player, entity, properties.getProperty(propertyRegistry.getByName("glow", NamedColor.class)));
             NpcLocation location = entity.getLocation();
             sendPacket(player, new WrapperPlayServerSpawnEntity(entity.getEntityId(), Optional.of(entity.getUuid()), entity.getType(),
