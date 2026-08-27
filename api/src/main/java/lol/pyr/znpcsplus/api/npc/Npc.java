@@ -4,6 +4,7 @@ import lol.pyr.znpcsplus.api.entity.PropertyHolder;
 import lol.pyr.znpcsplus.api.hologram.Hologram;
 import lol.pyr.znpcsplus.api.interaction.InteractionAction;
 import lol.pyr.znpcsplus.util.NpcLocation;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
@@ -33,6 +34,15 @@ public interface Npc extends PropertyHolder {
      * @return The {@link NpcLocation} of this NPC
      */
     NpcLocation getLocation();
+
+    /**
+     * Gets the location of this NPC for the given player
+     * @param player The {@link Player} to get the location for
+     * @return The {@link NpcLocation} of this NPC for the player
+     * Note: this could be different for each player only if `look_type` property is set to `PER_PLAYER`
+     *       or the API is used to spawn the NPC with a different location/rotation for each player.
+     */
+    NpcLocation getLocation(Player player);
 
     /**
      * Sets the location of this NPC
@@ -162,6 +172,42 @@ public interface Npc extends PropertyHolder {
      * @param pitch The pitch to set
      */
     void setHeadRotation(float yaw, float pitch);
+
+    /**
+     * Gets a new location looking at the target location with no offsets applied
+     * @param location The target location to look at
+     * @return A new {@link NpcLocation} looking at the target location with no offsets applied
+     */
+    default NpcLocation lookingAt(Location location) {
+        return lookingAt(location, 0, 0);
+    }
+
+    /**
+     * Gets a new location looking at the target location with the given yaw and pitch offsets applied
+     * @param location The target location to look at
+     * @param yawOffset The RELATIVE yaw offset to apply, i.e. if yawOffset is 180, the npc will look away from the target
+     * @param pitchOffset The pitch offset to apply
+     * @return A new {@link NpcLocation} looking at the target location with the given yaw and pitch offsets applied
+     */
+    NpcLocation lookingAt(Location location, float yawOffset, float pitchOffset);
+
+    /**
+     * Gets a new location looking at the target player with no offsets applied
+     * @param player The target player to look at
+     * @return A new {@link NpcLocation} looking at the target player with no offsets applied
+     */
+    default  NpcLocation lookingAt(Player player) {
+        return lookingAt(player, 0, 0);
+    }
+
+    /**
+     * Gets a new location looking at the target player with the given yaw and pitch offsets applied
+     * @param player The target player to look at
+     * @param yawOffset The RELATIVE yaw offset to apply, i.e. if yawOffset is 180, the npc will look away from the target
+     * @param pitchOffset The pitch offset to apply
+     * @return A new {@link NpcLocation} looking at the target player with the given yaw and pitch offsets applied
+     */
+    NpcLocation lookingAt(Player player, float yawOffset, float pitchOffset);
 
     /**
      * @return The entity id of the packet entity that this npc object represents

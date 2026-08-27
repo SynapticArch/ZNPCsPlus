@@ -71,6 +71,9 @@ public class PacketEntity implements PropertyHolder {
         return FutureUtil.exceptionPrintingRunAsync(() -> {
             if (type == EntityTypes.PLAYER) packetFactory.spawnPlayer(player, this, properties).join();
             else packetFactory.spawnEntity(player, this, properties);
+            if (vehicle != null) {
+                setVehicle(vehicle);
+            }
             if (vehicleId != null) {
                 packetFactory.setPassengers(player, vehicleId, this.getEntityId());
             }
@@ -180,7 +183,9 @@ public class PacketEntity implements PropertyHolder {
     }
 
     private static int reserveEntityID() {
-        if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_14)) {
+        if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_26_2)) {
+            return Reflections.ATOMIC_ENTITY_ID_FIELD_26_2.get().incrementAndGet();
+        } else if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_14)) {
             return Reflections.ATOMIC_ENTITY_ID_FIELD.get().incrementAndGet();
         } else {
             int id = Reflections.ENTITY_ID_MODIFIER.get();
@@ -212,6 +217,10 @@ public class PacketEntity implements PropertyHolder {
     @Override
     public ItemStack getItemProperty(EntityProperty<?> key) {
         return properties.getItemProperty(key);
+    }
+
+    public PropertyHolder getProperties() {
+        return properties;
     }
 
     @Override

@@ -21,30 +21,39 @@ import lol.pyr.znpcsplus.entity.PacketEntity;
 import lol.pyr.znpcsplus.entity.properties.attributes.AttributeProperty;
 import lol.pyr.znpcsplus.scheduling.TaskScheduler;
 import lol.pyr.znpcsplus.skin.BaseSkinDescriptor;
+import lol.pyr.znpcsplus.util.LazyLoader;
 import lol.pyr.znpcsplus.util.NamedColor;
 import lol.pyr.znpcsplus.util.NpcLocation;
+import lol.pyr.znpcsplus.util.PapiUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 public class V1_8PacketFactory implements PacketFactory {
     protected final TaskScheduler scheduler;
-    protected final PacketEventsAPI<Plugin> packetEvents;
+    protected final PacketEventsAPI<@NotNull Plugin> packetEvents;
     protected final EntityPropertyRegistryImpl propertyRegistry;
     protected final LegacyComponentSerializer textSerializer;
     protected ConfigManager configManager;
 
-    public V1_8PacketFactory(TaskScheduler scheduler, PacketEventsAPI<Plugin> packetEvents, EntityPropertyRegistryImpl propertyRegistry, LegacyComponentSerializer textSerializer, ConfigManager configManager) {
+    protected final LazyLoader<EntityPropertyImpl<String>> displayNameProperty;
+    protected final LazyLoader<EntityPropertyImpl<Component>> tabListDisplayNameProperty;
+
+    public V1_8PacketFactory(TaskScheduler scheduler, PacketEventsAPI<@NotNull Plugin> packetEvents, EntityPropertyRegistryImpl propertyRegistry, LegacyComponentSerializer textSerializer, ConfigManager configManager) {
         this.scheduler = scheduler;
         this.packetEvents = packetEvents;
         this.propertyRegistry = propertyRegistry;
         this.textSerializer = textSerializer;
         this.configManager = configManager;
+
+        this.displayNameProperty = LazyLoader.of(() -> propertyRegistry.getByName("display_name", String.class));
+        this.tabListDisplayNameProperty = LazyLoader.of(() -> propertyRegistry.getByName("tab_list_display_name", Component.class));
     }
 
     @Override
@@ -83,6 +92,7 @@ public class V1_8PacketFactory implements PacketFactory {
     @Override
     public void destroyEntity(Player player, PacketEntity entity, PropertyHolder properties) {
         sendPacket(player, new WrapperPlayServerDestroyEntities(entity.getEntityId()));
+        removeTabPlayer(player, entity);
         removeTeam(player, entity);
     }
 
@@ -97,11 +107,18 @@ public class V1_8PacketFactory implements PacketFactory {
     public CompletableFuture<Void> addTabPlayer(Player player, PacketEntity entity, PropertyHolder properties) {
         if (entity.getType() != EntityTypes.PLAYER) return CompletableFuture.completedFuture(null);
         CompletableFuture<Void> future = new CompletableFuture<>();
+        Component displayName = tabListDisplayNameProperty != null && properties.getProperty(tabListDisplayNameProperty.get()) != null ?
+                PapiUtil.set(textSerializer, player, properties.getProperty(tabListDisplayNameProperty.get())) :
+                Component.text(PapiUtil.set(player, configManager.getConfig().tabDisplayName()
+                        .replace("{id}", Integer.toString(entity.getEntityId()))
+                        .replace("{name}", displayNameProperty != null && properties.hasProperty(displayNameProperty.get()) ?
+                                properties.getProperty(displayNameProperty.get()) :
+                                "")
+                ));
         skinned(player, properties, new UserProfile(entity.getUuid(), Integer.toString(entity.getEntityId()))).thenAccept(profile -> {
             sendPacket(player, new WrapperPlayServerPlayerInfo(
                     WrapperPlayServerPlayerInfo.Action.ADD_PLAYER, new WrapperPlayServerPlayerInfo.PlayerData(
-                            Component.text(configManager.getConfig().tabDisplayName().replace("{id}", Integer.toString(entity.getEntityId()))),
-                    profile, GameMode.CREATIVE, 1)));
+                            displayName, profile, GameMode.CREATIVE, 1)));
             future.complete(null);
         });
         return future;
@@ -135,13 +152,13 @@ public class V1_8PacketFactory implements PacketFactory {
 
     @Override
     public void sendAllMetadata(Player player, PacketEntity entity, PropertyHolder properties) {
-        Map<Integer, EntityData> datas = new HashMap<>();
+        Map<Integer, EntityData<?>> datas = new HashMap<>();
         for (EntityProperty<?> property : properties.getAppliedProperties()) ((EntityPropertyImpl<?>) property).apply(player, entity, false, datas);
         sendMetadata(player, entity, new ArrayList<>(datas.values()));
     }
 
     @Override
-    public void sendMetadata(Player player, PacketEntity entity, List<EntityData> data) {
+    public void sendMetadata(Player player, PacketEntity entity, List<EntityData<?>> data) {
         sendPacket(player, new WrapperPlayServerEntityMetadata(entity.getEntityId(), data));
     }
 
@@ -180,7 +197,7 @@ public class V1_8PacketFactory implements PacketFactory {
         return future;
     }
 
-    protected void add(Map<Integer, EntityData> map, EntityData data) {
+    protected void add(Map<Integer, EntityData<?>> map, EntityData<?> data) {
         map.put(data.getIndex(), data);
     }
 
@@ -204,5 +221,16 @@ public class V1_8PacketFactory implements PacketFactory {
     @Override
     public void sendAttribute(Player player, PacketEntity entity, WrapperPlayServerUpdateAttributes.Property property) {
         sendPacket(player, new WrapperPlayServerUpdateAttributes(entity.getEntityId(), Collections.singletonList(property)));
+    }
+
+    @Override
+    public void updateDisplayName(Player player, PacketEntity entity, Component displayName) {
+        if (entity.getType() != EntityTypes.PLAYER) return;
+        sendPacket(player, new WrapperPlayServerPlayerInfo(
+                WrapperPlayServerPlayerInfo.Action.UPDATE_DISPLAY_NAME, new WrapperPlayServerPlayerInfo.PlayerData(
+                    displayName,
+                    new UserProfile(entity.getUuid(), null), null, -1
+                )
+        ));
     }
 }

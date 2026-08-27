@@ -44,7 +44,7 @@ import lol.pyr.znpcsplus.skin.cache.SkinCacheCleanTask;
 import lol.pyr.znpcsplus.storage.NpcStorageType;
 import lol.pyr.znpcsplus.tasks.HologramRefreshTask;
 import lol.pyr.znpcsplus.tasks.NpcProcessorTask;
-import lol.pyr.znpcsplus.tasks.ViewableHideOnLeaveListener;
+import lol.pyr.znpcsplus.tasks.ViewableCleanupListener;
 import lol.pyr.znpcsplus.updater.UpdateChecker;
 import lol.pyr.znpcsplus.updater.UpdateNotificationListener;
 import lol.pyr.znpcsplus.user.ClientPacketListener;
@@ -67,10 +67,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 public class ZNpcsPlus {
     private final LegacyComponentSerializer textSerializer = LegacyComponentSerializer.builder()
@@ -97,7 +94,7 @@ public class ZNpcsPlus {
         skinCache = new MojangSkinCache(configManager, new File(getDataFolder(), "skins"));
         propertyRegistry = new EntityPropertyRegistryImpl(skinCache, configManager);
 
-        NpcPropertyRegistryProvider.register(propertyRegistry);
+        NpcPropertyRegistryProvider.register(bootstrap, propertyRegistry);
         shutdownTasks.add(NpcPropertyRegistryProvider::unregister);
     }
 
@@ -110,7 +107,7 @@ public class ZNpcsPlus {
 
         log(ChatColor.YELLOW + "  ___       __   __  __");
         log(ChatColor.YELLOW + "   _/ |\\ | |__) |   (__` " + ChatColor.GOLD + "__|__   " + ChatColor.YELLOW + getDescription().getName() + " " + ChatColor.GOLD + "v" + getDescription().getVersion());
-        log(ChatColor.YELLOW + "  /__ | \\| |    |__ .__) " + ChatColor.GOLD + "  |     " + ChatColor.GRAY + "Maintained with " + ChatColor.RED + "\u2764 " + ChatColor.GRAY + " by Pyr#6969");
+        log(ChatColor.YELLOW + "  /__ | \\| |    |__ .__) " + ChatColor.GOLD + "  |     " + ChatColor.GRAY + "Maintained with " + ChatColor.RED + "\u2764 " + ChatColor.GRAY + " by Pyrbu");
         log("");
 
         PluginManager pluginManager = Bukkit.getPluginManager();
@@ -127,10 +124,11 @@ public class ZNpcsPlus {
 
         TaskScheduler scheduler = FoliaUtil.isFolia() ? new FoliaScheduler(bootstrap) : new SpigotScheduler(bootstrap);
         shutdownTasks.add(scheduler::cancelAll);
-
+        shutdownTasks.add(Viewable::shutdownExecutor);
+        shutdownTasks.add(FutureUtil::shutdownExecutor);
 
         PacketFactory packetFactory = setupPacketFactory(scheduler, propertyRegistry, configManager);
-        propertyRegistry.registerTypes(bootstrap, packetFactory, textSerializer, scheduler);
+        propertyRegistry.registerTypes(packetFactory, textSerializer, scheduler);
 
         BungeeConnector bungeeConnector = new BungeeConnector(bootstrap);
         ActionRegistryImpl actionRegistry = new ActionRegistryImpl();
@@ -173,7 +171,7 @@ public class ZNpcsPlus {
         scheduler.runDelayedTimerAsync(new NpcProcessorTask(npcRegistry, propertyRegistry, userManager), 60L, 3L);
         scheduler.runDelayedTimerAsync(new HologramRefreshTask(npcRegistry), 60L, 20L);
         scheduler.runDelayedTimerAsync(new SkinCacheCleanTask(skinCache), 1200, 1200);
-        pluginManager.registerEvents(new ViewableHideOnLeaveListener(), bootstrap);
+        pluginManager.registerEvents(new ViewableCleanupListener(), bootstrap);
 
         log(ChatColor.WHITE + " * Loading data...");
         npcRegistry.reload();
@@ -217,6 +215,7 @@ public class ZNpcsPlus {
 
     public void onDisable() {
         NpcApiProvider.unregister();
+        Collections.reverse(shutdownTasks);
         for (Runnable runnable : shutdownTasks) try {
             runnable.run();
         } catch (Throwable throwable) {
@@ -266,6 +265,7 @@ public class ZNpcsPlus {
         manager.registerParser(Vector3f.class, new Vector3fParser(incorrectUsageMessage));
         manager.registerParser(String.class, new StringParser(incorrectUsageMessage));
         manager.registerParser(Vector3i.class, new Vector3iParser(incorrectUsageMessage));
+        manager.registerParser(Component.class, new ComponentParser(incorrectUsageMessage, textSerializer));
 
         // TODO: Need to find a better way to do this
         registerEnumParser(manager, NpcPose.class, incorrectUsageMessage);
@@ -299,6 +299,7 @@ public class ZNpcsPlus {
         registerEnumParser(manager, WoldVariant.class, incorrectUsageMessage);
         registerEnumParser(manager, NpcStorageType.class, incorrectUsageMessage);
         registerEnumParser(manager, SkeletonType.class, incorrectUsageMessage);
+        registerEnumParser(manager, ZombieNautilusVariant.class, incorrectUsageMessage);
 
         manager.registerCommand("npc", new MultiCommand(bootstrap.loadHelpMessage("root"))
                 .addSubcommand("center", new CenterCommand(npcRegistry))

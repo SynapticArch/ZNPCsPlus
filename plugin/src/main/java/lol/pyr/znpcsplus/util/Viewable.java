@@ -5,60 +5,47 @@ import org.bukkit.entity.Player;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 public abstract class Viewable {
-    private final static List<WeakReference<Viewable>> all = new ArrayList<>();
+    private final static List<WeakReference<Viewable>> all = Collections.synchronizedList(new ArrayList<>());
 
     public static List<Viewable> all() {
-        all.removeIf(reference -> reference.get() == null);
-        return all.stream()
-                .map(Reference::get)
-                .collect(Collectors.toList());
+        synchronized (all) {
+            all.removeIf(reference -> reference.get() == null);
+            return all.stream()
+                    .map(Reference::get)
+                    .collect(Collectors.toList());
+        }
     }
 
-    private boolean queueRunning = false;
-    private final Queue<Runnable> visibilityTaskQueue = new ConcurrentLinkedQueue<>();
+    public static void shutdownExecutor() {
+        visibilityExecutor.shutdown();
+    }
+
+    private final static ExecutorService visibilityExecutor = Executors.newSingleThreadExecutor();
     private final Set<Player> viewers = ConcurrentHashMap.newKeySet();
 
     public Viewable() {
         all.add(new WeakReference<>(this));
     }
 
-    private void tryRunQueue() {
-        if (visibilityTaskQueue.isEmpty() || queueRunning) return;
-        queueRunning = true;
-        FutureUtil.exceptionPrintingRunAsync(() -> {
-            while (!visibilityTaskQueue.isEmpty()) try {
-                visibilityTaskQueue.remove().run();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            queueRunning = false;
-        });
-    }
-
-    private void queueVisibilityTask(Runnable runnable) {
-        visibilityTaskQueue.add(runnable);
-        tryRunQueue();
-    }
-
     public void delete() {
-        queueVisibilityTask(() -> {
+        visibilityExecutor.submit(() -> {
             UNSAFE_hideAll();
             viewers.clear();
+            synchronized (all) {
+                all.removeIf(reference -> reference.get() == null || reference.get() == this);
+            }
         });
     }
 
     public CompletableFuture<Void> respawn() {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        queueVisibilityTask(() -> {
+        visibilityExecutor.submit(() -> {
             UNSAFE_hideAll();
-            UNSAFE_showAll().join();
-            future.complete(null);
+            UNSAFE_showAll().thenRun(() -> future.complete(null));
         });
         return future;
     }
@@ -70,20 +57,19 @@ public abstract class Viewable {
 
     public CompletableFuture<Void> show(Player player) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        queueVisibilityTask(() -> {
+        visibilityExecutor.submit(() -> {
             if (viewers.contains(player)) {
                 future.complete(null);
                 return;
             }
             viewers.add(player);
-            UNSAFE_show(player).join();
-            future.complete(null);
+            UNSAFE_show(player).thenRun(() -> future.complete(null));
         });
         return future;
     }
 
     public void hide(Player player) {
-        queueVisibilityTask(() -> {
+        visibilityExecutor.submit(() -> {
             if (!viewers.contains(player)) return;
             viewers.remove(player);
             UNSAFE_hide(player);

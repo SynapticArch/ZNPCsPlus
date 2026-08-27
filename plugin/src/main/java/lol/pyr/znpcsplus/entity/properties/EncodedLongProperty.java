@@ -9,12 +9,12 @@ import org.bukkit.entity.Player;
 
 import java.util.Map;
 
-public class EncodedByteProperty<T> extends EntityPropertyImpl<T> {
-    private final EntityDataType<Byte> type;
-    private final ByteDecoder<T> decoder;
+public class EncodedLongProperty<T> extends EntityPropertyImpl<T> {
+    private final EntityDataType<Long> type;
+    private final LongDecoder<T> decoder;
     private final int index;
 
-    protected EncodedByteProperty(String name, T defaultValue, Class<T> clazz, int index, ByteDecoder<T> decoder, EntityDataType<Byte> type) {
+    protected EncodedLongProperty(String name, T defaultValue, Class<T> clazz, int index, LongDecoder<T> decoder, EntityDataType<Long> type) {
         super(name, defaultValue, clazz);
         this.decoder = decoder;
         this.index = index;
@@ -22,17 +22,17 @@ public class EncodedByteProperty<T> extends EntityPropertyImpl<T> {
     }
 
     @SuppressWarnings("unchecked")
-    public EncodedByteProperty(String name, T defaultValue, int index, ByteDecoder<T> decoder) {
-        this(name, defaultValue, (Class<T>) defaultValue.getClass(), index, decoder, EntityDataTypes.BYTE);
+    public EncodedLongProperty(String name, T defaultValue, int index, LongDecoder<T> decoder) {
+        this(name, defaultValue, (Class<T>) defaultValue.getClass(), index, decoder, EntityDataTypes.LONG);
     }
 
     @SuppressWarnings("unchecked")
-    public EncodedByteProperty(String name, T defaultValue, int index, ByteDecoder<T> decoder, EntityDataType<Byte> type) {
+    public EncodedLongProperty(String name, T defaultValue, int index, LongDecoder<T> decoder, EntityDataType<Long> type) {
         this(name, defaultValue, (Class<T>) defaultValue.getClass(), index, decoder, type);
     }
 
-    public EncodedByteProperty(String name, Class<T> clazz, int index, ByteDecoder<T> decoder) {
-        this(name, null, clazz, index, decoder, EntityDataTypes.BYTE);
+    public EncodedLongProperty(String name, Class<T> clazz, int index, LongDecoder<T> decoder) {
+        this(name, null, clazz, index, decoder, EntityDataTypes.LONG);
     }
 
     @Override
@@ -42,7 +42,7 @@ public class EncodedByteProperty<T> extends EntityPropertyImpl<T> {
         properties.put(index, newEntityData(index, type, decoder.decode(value)));
     }
 
-    public interface ByteDecoder<T> {
-        byte decode(T obj);
+    public interface LongDecoder<T> {
+        long decode(T obj);
     }
 }

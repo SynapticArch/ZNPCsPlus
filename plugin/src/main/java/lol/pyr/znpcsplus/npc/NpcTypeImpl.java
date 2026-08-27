@@ -4,6 +4,8 @@ import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.manager.server.ServerVersion;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityType;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
+import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerTags;
 import lol.pyr.znpcsplus.api.entity.EntityProperty;
 import lol.pyr.znpcsplus.api.npc.NpcType;
 import lol.pyr.znpcsplus.entity.EntityPropertyImpl;
@@ -19,11 +21,13 @@ public class NpcTypeImpl implements NpcType {
     private final Map<EntityPropertyImpl<?>, Object> defaultProperties;
     private final String name;
     private final double hologramOffset;
+    private final float eyeHeight;
 
-    private NpcTypeImpl(String name, EntityType type, double hologramOffset, Set<EntityPropertyImpl<?>> allowedProperties, Map<EntityPropertyImpl<?>, Object> defaultProperties) {
+    private NpcTypeImpl(String name, EntityType type, double hologramOffset, float eyeHeight, Set<EntityPropertyImpl<?>> allowedProperties, Map<EntityPropertyImpl<?>, Object> defaultProperties) {
         this.name = name.toLowerCase();
         this.type = type;
         this.hologramOffset = hologramOffset;
+        this.eyeHeight = eyeHeight;
         this.allowedProperties = allowedProperties;
         this.defaultProperties = defaultProperties;
     }
@@ -38,6 +42,10 @@ public class NpcTypeImpl implements NpcType {
 
     public double getHologramOffset() {
         return hologramOffset;
+    }
+
+    public float getEyeHeight() {
+        return eyeHeight;
     }
 
     public Set<EntityProperty<?>> getAllowedProperties() {
@@ -63,6 +71,7 @@ public class NpcTypeImpl implements NpcType {
         private final List<EntityPropertyImpl<?>> allowedProperties = new ArrayList<>();
         private final Map<EntityPropertyImpl<?>, Object> defaultProperties = new HashMap<>();
         private double hologramOffset = 0;
+        private float eyeHeight = 0;
 
         Builder(EntityPropertyRegistryImpl propertyRegistry, String name, EntityType type) {
             this.propertyRegistry = propertyRegistry;
@@ -112,10 +121,15 @@ public class NpcTypeImpl implements NpcType {
             return this;
         }
 
+        public Builder setEyeHeight(float eyeHeight) {
+            this.eyeHeight = eyeHeight;
+            return this;
+        }
+
         public NpcTypeImpl build() {
             ServerVersion version = PacketEvents.getAPI().getServerManager().getVersion();
             addProperties("fire", "invisible", "silent", "look", "look_distance", "look_return", "view_distance",
-                    "potion_color", "potion_ambient", "display_name", "permission_required",
+                    "potion_color", "potion_ambient", "display_name", "permission_required", "premission_required_perm",
                     "player_knockback", "player_knockback_exempt_permission", "player_knockback_distance", "player_knockback_vertical",
                     "player_knockback_horizontal", "player_knockback_cooldown", "player_knockback_sound", "player_knockback_sound_name",
                     "player_knockback_sound_volume", "player_knockback_sound_pitch");
@@ -127,16 +141,13 @@ public class NpcTypeImpl implements NpcType {
             if (version.isNewerThanOrEquals(ServerVersion.V_1_9)) addProperties("glow");
             if (version.isNewerThanOrEquals(ServerVersion.V_1_14)) {
                 addProperties("pose");
-                if (EntityTypes.isTypeInstanceOf(type, EntityTypes.HORSE)) {
-                    addProperties("chestplate");
-                }
             }
             if (version.isNewerThanOrEquals(ServerVersion.V_1_17)) addProperties("shaking");
             if (EntityTypes.isTypeInstanceOf(type, EntityTypes.ABSTRACT_AGEABLE) || EntityTypes.isTypeInstanceOf(type, EntityTypes.ZOMBIE) || EntityTypes.isTypeInstanceOf(type, EntityTypes.ZOGLIN)) {
                 addProperties("baby");
             }
             if (EntityTypes.isTypeInstanceOf(type, EntityTypes.ABSTRACT_HORSE)) {
-                addProperties("is_saddled", "is_eating", "is_rearing", "has_mouth_open");
+                addProperties("is_tame", "is_eating", "is_rearing", "has_mouth_open");
             }
             if (type.equals(EntityTypes.HORSE) && version.isOlderThan(ServerVersion.V_1_14)) {
                 addProperties("horse_armor");
@@ -155,7 +166,7 @@ public class NpcTypeImpl implements NpcType {
             if (EntityTypes.isTypeInstanceOf(type, EntityTypes.ABSTRACT_PIGLIN)) {
                 addProperties("piglin_immune_to_zombification");
             }
-            if (EntityTypes.isTypeInstanceOf(type, EntityTypes.SLIME) || EntityTypes.isTypeInstanceOf(type, EntityTypes.PHANTOM)) {
+            if (EntityTypes.isTypeInstanceOf(type, EntityTypes.PHANTOM)) {
                 addProperties("size");
             }
             if (version.isOlderThan(ServerVersion.V_1_14)) {
@@ -180,6 +191,14 @@ public class NpcTypeImpl implements NpcType {
             if (version.isNewerThanOrEquals(ServerVersion.V_1_20_5)) {
                 if (EntityTypes.isTypeInstanceOf(type, EntityTypes.WOLF)) {
                     addProperties("wolf_variant");
+                    if (version.isNewerThanOrEquals(ServerVersion.V_1_21)) {
+                        addProperties("body");
+                    } else {
+                        addProperties("chestplate");
+                    }
+                }
+                if (EntityTypes.isTypeInstanceOf(type, EntityTypes.LIVINGENTITY)) {
+                    addProperties("attribute_scale");
                 }
             }
             if (version.isNewerThanOrEquals(ServerVersion.V_1_21_4)) {
@@ -187,7 +206,71 @@ public class NpcTypeImpl implements NpcType {
                     addProperties("creaking_crumbling");
                 }
             }
-            return new NpcTypeImpl(name, type, hologramOffset, new HashSet<>(allowedProperties), defaultProperties);
+            if (EntityTypes.isTypeInstanceOf(type, EntityTypes.ZOMBIE)) {
+                if (version.isOlderThan(ServerVersion.V_1_9)) {
+                    addProperties("zombie_is_villager");
+                } else if (version.isOlderThan(ServerVersion.V_1_11)) {
+                    addProperties("zombie_type");
+                }
+
+                if (version.isOlderThan(ServerVersion.V_1_11)) {
+                    addProperties("is_converting");
+                }
+
+                if (version.isNewerThanOrEquals(ServerVersion.V_1_9) && version.isOlderThan(ServerVersion.V_1_14)) {
+                    addProperties("zombie_hands_held_up");
+                }
+
+                if (version.isNewerThanOrEquals(ServerVersion.V_1_13)) {
+                    addProperties("zombie_becoming_drowned");
+                }
+            }
+            if (EntityTypes.isTypeInstanceOf(type, EntityTypes.HAPPY_GHAST)) {
+                addProperties("body");
+            }
+            if (EntityTypes.isTypeInstanceOf(type, EntityTypes.HORSE)) {
+                if (version.isNewerThanOrEquals(ServerVersion.V_1_21)) {
+                    addProperties("body");
+                } else {
+                    addProperties("chestplate");
+                }
+            }
+            if (version.isNewerThanOrEquals(ServerVersion.V_1_21_5)) {
+                    if (EntityTypes.isTypeInstanceOf(type, EntityTypes.HORSE)
+                            || EntityTypes.isTypeInstanceOf(type, EntityTypes.SKELETON_HORSE)
+                            || EntityTypes.isTypeInstanceOf(type, EntityTypes.ZOMBIE_HORSE)
+                            || EntityTypes.isTypeInstanceOf(type, EntityTypes.DONKEY)
+                            || EntityTypes.isTypeInstanceOf(type, EntityTypes.MULE)
+                            || EntityTypes.isTypeInstanceOf(type, EntityTypes.PIG)
+                            || EntityTypes.isTypeInstanceOf(type, EntityTypes.STRIDER)
+                            || EntityTypes.isTypeInstanceOf(type, EntityTypes.CAMEL)
+                            || EntityTypes.isTypeInstanceOf(type, EntityTypes.CAMEL_HUSK)
+                            || EntityTypes.isTypeInstanceOf(type, EntityTypes.NAUTILUS)
+                            || EntityTypes.isTypeInstanceOf(type, EntityTypes.ZOMBIE_NAUTILUS)) {
+                        addProperties("saddle");
+                    }
+            } else {
+                // not newer than 1.21.5 but still has saddles
+                if (EntityTypes.isTypeInstanceOf(type, EntityTypes.ABSTRACT_HORSE)) {
+                    addProperties("is_saddled");
+                } else if (EntityTypes.isTypeInstanceOf(type, EntityTypes.PIG)) {
+                    addProperties("pig_saddled");
+                } else if (EntityTypes.isTypeInstanceOf(type, EntityTypes.STRIDER)) {
+                    addProperties("strider_saddled");
+                }
+            }
+            if (version.isNewerThanOrEquals(ServerVersion.V_26_2)) {
+                if (EntityTypes.isTypeInstanceOf(type, EntityTypes.SLIME)
+                        || EntityTypes.isTypeInstanceOf(type, EntityTypes.MAGMA_CUBE)
+                        || EntityTypes.isTypeInstanceOf(type, EntityTypes.SULFUR_CUBE)) { // TODO: Change to Abstract Cube Mob when it is added to PacketEvents
+                    addProperties("cube_size");
+                }
+            } else {
+                if (EntityTypes.isTypeInstanceOf(type, EntityTypes.SLIME)) {
+                    addProperties("size");
+                }
+            }
+            return new NpcTypeImpl(name, type, hologramOffset, eyeHeight, new HashSet<>(allowedProperties), defaultProperties);
         }
     }
 }

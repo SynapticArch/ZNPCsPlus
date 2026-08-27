@@ -6,6 +6,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUp
 import lol.pyr.znpcsplus.api.entity.PropertyHolder;
 import lol.pyr.znpcsplus.entity.PacketEntity;
 import lol.pyr.znpcsplus.util.NamedColor;
+import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 
 import java.util.List;
@@ -22,10 +23,11 @@ public interface PacketFactory {
     void removeTeam(Player player, PacketEntity entity);
     void sendAllMetadata(Player player, PacketEntity entity, PropertyHolder properties);
     void sendEquipment(Player player, PacketEntity entity, Equipment equipment);
-    void sendMetadata(Player player, PacketEntity entity, List<EntityData> data);
+    void sendMetadata(Player player, PacketEntity entity, List<EntityData<?>> data);
     void sendHeadRotation(Player player, PacketEntity entity, float yaw, float pitch);
     void sendHandSwing(Player player, PacketEntity entity, boolean offHand);
     void setPassengers(Player player, int vehicle, int... passengers);
     void sendAllAttributes(Player player, PacketEntity entity, PropertyHolder properties);
     void sendAttribute(Player player, PacketEntity entity, WrapperPlayServerUpdateAttributes.Property property);
+    void updateDisplayName(Player player, PacketEntity entity, Component displayName);
 }

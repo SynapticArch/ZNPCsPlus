@@ -34,7 +34,7 @@ public final class Reflections {
     public static final Class<?> ENTITY_HUMAN_CLASS =
             new ReflectionBuilder(ReflectionPackage.ENTITY)
                     .withSubClass("player")
-                    .withClassName("EntityHuman")
+                    .withClassName(PacketEvents.getAPI().getServerManager().getVersion().isOlderThan(ServerVersion.V_26_1) ? "EntityHuman" : "Player")
                     .toClassReflection().get();
 
     public static final ReflectionLazyLoader<Method> GET_PLAYER_HANDLE_METHOD =
@@ -140,6 +140,25 @@ public final class Reflections {
                     .withFieldName("c")
                     .withExpectResult(AtomicInteger.class)
                     .setStrict(PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_14))
+                    .toFieldReflection()
+                    .toStaticValueLoader(AtomicInteger.class);
+
+    /*
+     * These methods are used for reserving entity ids in server versions 26.2+
+     * where the field has been moved to ServerLevel instead of Entity.
+     */
+
+    public static final Class<?> SERVER_LEVEL_CLASS =
+            new ReflectionBuilder(ReflectionPackage.SERVER_LEVEL)
+                    .withClassName("ServerLevel")
+                    .toClassReflection().get();
+
+    public static final ReflectionLazyLoader<AtomicInteger> ATOMIC_ENTITY_ID_FIELD_26_2 =
+            new ReflectionBuilder(ReflectionPackage.SERVER_LEVEL)
+                    .withClassName(SERVER_LEVEL_CLASS)
+                    .withFieldName("ENTITY_COUNTER")
+                    .withExpectResult(AtomicInteger.class)
+                    .setStrict(PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_26_2))
                     .toFieldReflection()
                     .toStaticValueLoader(AtomicInteger.class);
 

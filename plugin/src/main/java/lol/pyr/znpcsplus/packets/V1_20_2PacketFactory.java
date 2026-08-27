@@ -14,6 +14,7 @@ import lol.pyr.znpcsplus.util.NpcLocation;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -22,7 +23,7 @@ public class V1_20_2PacketFactory extends V1_19_3PacketFactory {
 
     protected ConfigManager configManager;
 
-    public V1_20_2PacketFactory(TaskScheduler scheduler, PacketEventsAPI<Plugin> packetEvents, EntityPropertyRegistryImpl propertyRegistry, LegacyComponentSerializer textSerializer, ConfigManager configManager) {
+    public V1_20_2PacketFactory(TaskScheduler scheduler, PacketEventsAPI<@NotNull Plugin> packetEvents, EntityPropertyRegistryImpl propertyRegistry, LegacyComponentSerializer textSerializer, ConfigManager configManager) {
         super(scheduler, packetEvents, propertyRegistry, textSerializer, configManager);
         this.configManager = configManager;
     }
@@ -34,6 +35,7 @@ public class V1_20_2PacketFactory extends V1_19_3PacketFactory {
             NpcLocation location = entity.getLocation();
             sendPacket(player, new WrapperPlayServerSpawnEntity(entity.getEntityId(), Optional.of(entity.getUuid()), entity.getType(),
                     npcLocationToVector(location), location.getPitch(), location.getYaw(), location.getYaw(), 0, Optional.of(new Vector3d())));
+            //noinspection DuplicatedCode
             sendPacket(player, new WrapperPlayServerEntityHeadLook(entity.getEntityId(), location.getYaw()));
             sendAllMetadata(player, entity, properties);
             sendAllAttributes(player, entity, properties);

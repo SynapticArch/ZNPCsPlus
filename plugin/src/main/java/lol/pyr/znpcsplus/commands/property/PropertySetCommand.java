@@ -45,6 +45,7 @@ public class PropertySetCommand implements CommandHandler {
         // TODO: find a way to do this better & rewrite this mess
 
         if (!npc.getType().getAllowedProperties().contains(property)) context.halt(Component.text("Property " + property.getName() + " not allowed for npc type " + npc.getType().getName(), NamedTextColor.RED));
+        if (!property.isPlayerModifiable()) context.halt(Component.text("This property is not modifiable by players", NamedTextColor.RED));
         Class<?> type = property.getType();
         Object value;
         String valueName;
@@ -147,7 +148,12 @@ public class PropertySetCommand implements CommandHandler {
         }
 
         npc.UNSAFE_setProperty(property, value);
-        context.send(Component.text("Set property " + property.getName() + " for NPC " + entry.getId() + " to " + valueName, NamedTextColor.GREEN));
+        if (type == Component.class && value != null) {
+            context.send(Component.text("Set property " + property.getName() + " for NPC " + entry.getId() + " to ", NamedTextColor.GREEN)
+                    .append((Component) value));
+        } else {
+            context.send(Component.text("Set property " + property.getName() + " for NPC " + entry.getId() + " to " + valueName, NamedTextColor.GREEN));
+        }
     }
 
     @Override
